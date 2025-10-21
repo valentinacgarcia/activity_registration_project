@@ -102,6 +102,22 @@
             margin-top: 4px;
         }
 
+        .field-error {
+            display: block;
+            font-size: 0.8rem;
+            color: #dc3545;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        .field-success {
+            display: block;
+            font-size: 0.8rem;
+            color: #28a745;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
         .capacity-info {
             background: #e3f2fd;
             border: 1px solid #bbdefb;
@@ -328,25 +344,33 @@
                 <!-- Sección de Registro -->
                 <div class="section">
                     <h2>✍️ Registro de Visitante</h2>
+                    <div class="form-group">
+                        <label for="current-time-input">Hora actual (HH:MM) para validación:</label>
+                        <input type="time" id="current-time-input" step="1800">
+                        <span class="field-hint">Opcional. Si la ingresas, no permitirá elegir turnos anteriores a esta hora.</span>
+                    </div>
                     <form id="registration-form">
                         <div class="form-group">
                             <label for="visitor-name">Nombre completo:</label>
-                            <input type="text" id="visitor-name" name="name" pattern="[A-Za-záéíóúÁÉÍÓÚñÑ\s]+" title="Solo se permiten letras y espacios" required>
+                            <input type="text" id="visitor-name" name="name" pattern="[A-Za-záéíóúÁÉÍÓÚñÑ\s]*" title="Solo se permiten letras y espacios" required>
+                            <span class="field-error" id="visitor-name-error" style="display: none;"></span>
                         </div>
 
                         <div class="form-group">
                             <label for="visitor-dni">DNI:</label>
                             <input type="text" id="visitor-dni" name="dni" pattern="[0-9]{7,8}" title="DNI debe tener 7 u 8 dígitos" required>
+                            <span class="field-error" id="visitor-dni-error" style="display: none;"></span>
                         </div>
 
                         <div class="form-group">
                             <label for="visitor-age">Edad:</label>
                             <input type="number" id="visitor-age" name="age" min="1" max="120" title="Edad debe estar entre 1 y 120 años" required>
+                            <span class="field-error" id="visitor-age-error" style="display: none;"></span>
                         </div>
 
                         <div class="form-group" id="clothing-size-group" style="display: none;">
                             <label for="visitor-size">Talla de vestimenta:</label>
-                            <select id="visitor-size" name="clothing_size">
+                            <select id="visitor-size" name="visitor-size">
                                 <option value="">Seleccionar talla</option>
                                 <option value="XS">XS</option>
                                 <option value="S">S</option>
@@ -395,6 +419,8 @@
         document.addEventListener('DOMContentLoaded', function() {
             loadActivities();
             setupEventListeners();
+            // Aplicar deshabilitado por hora actual al inicio
+            setTimeout(applyCurrentTimeDisabling, 0);
         });
 
         function setupEventListeners() {
@@ -406,71 +432,111 @@
             const dniInput = document.getElementById('visitor-dni');
             const ageInput = document.getElementById('visitor-age');
             const participantsInput = document.getElementById('participants-count');
+            const termsCheckbox = document.getElementById('terms-accepted');
+            const currentTimeInput = document.getElementById('current-time-input');
             
-            nameInput.addEventListener('input', validateName);
-            dniInput.addEventListener('input', validateDNI);
-            ageInput.addEventListener('input', validateAge);
-            participantsInput.addEventListener('input', validateParticipants);
+            nameInput.addEventListener('input', () => {
+                validateName();
+                validateForm();
+            });
+            dniInput.addEventListener('input', () => {
+                validateDNI();
+                validateForm();
+            });
+            ageInput.addEventListener('input', () => {
+                validateAge();
+                validateForm();
+            });
+            participantsInput.addEventListener('input', () => {
+                validateParticipants();
+                validateForm();
+                const count = parseInt(participantsInput.value) || 0;
+                toggleAdditionalParticipants(count);
+            });
+            
+            termsCheckbox.addEventListener('change', validateForm);
+            if (currentTimeInput) {
+                currentTimeInput.addEventListener('change', applyCurrentTimeDisabling);
+            }
+            
+            // Event listener para el campo de talla de vestimenta
+            const clothingSizeSelect = document.getElementById('visitor-size');
+            clothingSizeSelect.addEventListener('change', validateForm);
             
             // Agregar clase 'touched' cuando el usuario sale del campo
             nameInput.addEventListener('blur', () => {
                 nameInput.classList.add('touched');
                 validateName();
+                validateForm();
             });
             
             dniInput.addEventListener('blur', () => {
                 dniInput.classList.add('touched');
                 validateDNI();
+                validateForm();
             });
             
             ageInput.addEventListener('blur', () => {
                 ageInput.classList.add('touched');
                 validateAge();
+                validateForm();
             });
             
             participantsInput.addEventListener('blur', () => {
                 participantsInput.classList.add('touched');
                 validateParticipants();
-            });
-            
-            // Mostrar/ocultar campos de participantes adicionales
-            participantsInput.addEventListener('input', () => {
-                const count = parseInt(participantsInput.value) || 0;
-                toggleAdditionalParticipants(count);
+                validateForm();
             });
         }
         
         function validateName() {
             const input = document.getElementById('visitor-name');
+            const errorSpan = document.getElementById('visitor-name-error');
             const value = input.value;
-            const isValid = /^[A-Za-záéíóúÁÉÍÓÚñÑ\s]+$/.test(value);
+            // Permitir espacios durante la escritura, validar solo al final
+            const isValid = /^[A-Za-záéíóúÁÉÍÓÚñÑ\s]*$/.test(value);
             
             if (value.length > 0 && !isValid) {
+                showFieldError(errorSpan, 'Solo se permiten letras y espacios');
                 input.setCustomValidity('Solo se permiten letras y espacios');
             } else {
+                hideFieldError(errorSpan);
                 input.setCustomValidity('');
             }
         }
         
         function validateDNI() {
             const input = document.getElementById('visitor-dni');
+            const errorSpan = document.getElementById('visitor-dni-error');
             const value = input.value;
             const isValid = /^[0-9]{7,8}$/.test(value);
             
             if (value.length > 0 && !isValid) {
+                showFieldError(errorSpan, 'DNI debe tener 7 u 8 dígitos');
                 input.setCustomValidity('DNI debe tener 7 u 8 dígitos');
             } else {
+                hideFieldError(errorSpan);
                 input.setCustomValidity('');
             }
         }
         
         function validateAge() {
             const input = document.getElementById('visitor-age');
+            const errorSpan = document.getElementById('visitor-age-error');
             const value = parseInt(input.value);
             
-            if (value < 1 || value > 120) {
+            // Validar edad mínima según la actividad seleccionada PRIMERO
+            const minAge = getMinAgeForSelectedActivity();
+            if (minAge > 0 && value < minAge) {
+                const activityName = getSelectedActivityName();
+                const message = `La edad mínima para ${activityName} es ${minAge} años`;
+                showFieldError(errorSpan, message);
+                input.setCustomValidity(message);
+            } else if (value < 1 || value > 120) {
+                showFieldError(errorSpan, 'Edad debe estar entre 1 y 120 años');
                 input.setCustomValidity('Edad debe estar entre 1 y 120 años');
             } else {
+                hideFieldError(errorSpan);
                 input.setCustomValidity('');
             }
         }
@@ -484,6 +550,99 @@
             } else {
                 input.setCustomValidity('');
             }
+        }
+        
+        function validateForm() {
+            const registerBtn = document.getElementById('register-btn');
+            
+            // Verificar que se haya seleccionado una actividad y horario
+            if (!selectedActivity || !selectedSchedule) {
+                registerBtn.disabled = true;
+                registerBtn.textContent = 'Selecciona una actividad y horario';
+                return;
+            }
+            
+            // Verificar campos básicos del formulario
+            const nameInput = document.getElementById('visitor-name');
+            const dniInput = document.getElementById('visitor-dni');
+            const ageInput = document.getElementById('visitor-age');
+            const participantsInput = document.getElementById('participants-count');
+            const termsCheckbox = document.getElementById('terms-accepted');
+            
+            // Verificar que los campos básicos estén llenos y sean válidos
+            if (!nameInput.value.trim() || !dniInput.value.trim() || !ageInput.value.trim() || !participantsInput.value.trim()) {
+                registerBtn.disabled = true;
+                registerBtn.textContent = 'Completa todos los campos requeridos';
+                return;
+            }
+            
+            // Verificar que los campos sean válidos
+            if (!nameInput.checkValidity() || !dniInput.checkValidity() || !ageInput.checkValidity() || !participantsInput.checkValidity()) {
+                registerBtn.disabled = true;
+                registerBtn.textContent = 'Corrige los errores en el formulario';
+                return;
+            }
+            
+            // Verificar términos y condiciones
+            if (!termsCheckbox.checked) {
+                registerBtn.disabled = true;
+                registerBtn.textContent = 'Acepta los términos y condiciones';
+                return;
+            }
+            
+            // Verificar campo de talla si es requerido
+            const clothingSizeGroup = document.getElementById('clothing-size-group');
+            if (clothingSizeGroup.style.display !== 'none') {
+                const clothingSizeSelect = document.getElementById('visitor-size');
+                if (!clothingSizeSelect.value) {
+                    registerBtn.disabled = true;
+                    registerBtn.textContent = 'Selecciona una talla de vestimenta';
+                    return;
+                }
+            }
+            
+            // Verificar participantes adicionales si existen
+            const participantsCount = parseInt(participantsInput.value);
+            if (participantsCount > 1) {
+                for (let i = 1; i < participantsCount; i++) {
+                    const participantName = document.getElementById(`participant-${i}-name`);
+                    const participantDni = document.getElementById(`participant-${i}-dni`);
+                    const participantAge = document.getElementById(`participant-${i}-age`);
+                    
+                    if (!participantName || !participantDni || !participantAge) {
+                        registerBtn.disabled = true;
+                        registerBtn.textContent = 'Completa los datos de todos los participantes';
+                        return;
+                    }
+                    
+                    if (!participantName.value.trim() || !participantDni.value.trim() || !participantAge.value.trim()) {
+                        registerBtn.disabled = true;
+                        registerBtn.textContent = 'Completa los datos de todos los participantes';
+                        return;
+                    }
+                    
+                    if (!participantName.checkValidity() || !participantDni.checkValidity() || !participantAge.checkValidity()) {
+                        registerBtn.disabled = true;
+                        registerBtn.textContent = 'Corrige los errores en los datos de los participantes';
+                        return;
+                    }
+                    
+                    // Verificar talla de vestimenta para participantes adicionales si es requerida
+                    const participantClothingGroup = document.getElementById(`participant-${i}-clothing-group`);
+                    if (participantClothingGroup && participantClothingGroup.style.display !== 'none') {
+                        const participantClothingSelect = document.getElementById(`participant-${i}-size`);
+                        if (!participantClothingSelect.value) {
+                            registerBtn.disabled = true;
+                            registerBtn.textContent = 'Selecciona la talla de vestimenta para todos los participantes';
+                            return;
+                        }
+                    }
+                }
+            }
+            
+            // Si llegamos aquí, todo está válido
+            registerBtn.disabled = false;
+            registerBtn.textContent = `Registrarse en ${selectedSchedule}`;
         }
         
         function toggleAdditionalParticipants(count) {
@@ -512,19 +671,22 @@
                         <div class="form-group">
                             <label for="participant-${i}-name">Nombre completo:</label>
                             <input type="text" id="participant-${i}-name" name="participant_${i}_name" 
-                                   pattern="[A-Za-záéíóúÁÉÍÓÚñÑ\s]+" title="Solo se permiten letras y espacios" required>
+                                   title="Solo se permiten letras y espacios" required>
+                            <span class="field-error" id="participant-${i}-name-error" style="display: none;"></span>
                         </div>
                         
                         <div class="form-group">
                             <label for="participant-${i}-dni">DNI:</label>
                             <input type="text" id="participant-${i}-dni" name="participant_${i}_dni" 
                                    pattern="[0-9]{7,8}" title="DNI debe tener 7 u 8 dígitos" required>
+                            <span class="field-error" id="participant-${i}-dni-error" style="display: none;"></span>
                         </div>
                         
                         <div class="form-group">
                             <label for="participant-${i}-age">Edad:</label>
                             <input type="number" id="participant-${i}-age" name="participant_${i}_age" 
                                    min="1" max="120" title="Edad debe estar entre 1 y 120 años" required>
+                            <span class="field-error" id="participant-${i}-age-error" style="display: none;"></span>
                         </div>
                         
                         <div class="form-group" id="participant-${i}-clothing-group" style="display: none;">
@@ -558,12 +720,13 @@
         }
         
         function setupParticipantValidations() {
-            const participantInputs = document.querySelectorAll('[id^="participant-"][id$="-name"], [id^="participant-"][id$="-dni"], [id^="participant-"][id$="-age"]');
+            const participantInputs = document.querySelectorAll('[id^="participant-"][id$="-name"], [id^="participant-"][id$="-dni"], [id^="participant-"][id$="-age"], [id^="participant-"][id$="-size"]');
             
             participantInputs.forEach(input => {
                 input.addEventListener('blur', () => {
                     input.classList.add('touched');
                     validateParticipantField(input);
+                    validateForm();
                 });
             });
         }
@@ -571,26 +734,50 @@
         function validateParticipantField(input) {
             const value = input.value;
             const fieldType = input.id.split('-').pop();
+            const errorSpan = document.getElementById(`${input.id}-error`);
             
             if (fieldType === 'name') {
+                // Validación personalizada para nombres
                 const isValid = /^[A-Za-záéíóúÁÉÍÓÚñÑ\s]+$/.test(value);
                 if (value.length > 0 && !isValid) {
+                    showFieldError(errorSpan, 'Solo se permiten letras y espacios');
                     input.setCustomValidity('Solo se permiten letras y espacios');
+                } else if (value.length === 0) {
+                    showFieldError(errorSpan, 'El nombre es obligatorio');
+                    input.setCustomValidity('El nombre es obligatorio');
                 } else {
+                    hideFieldError(errorSpan);
                     input.setCustomValidity('');
                 }
             } else if (fieldType === 'dni') {
                 const isValid = /^[0-9]{7,8}$/.test(value);
                 if (value.length > 0 && !isValid) {
+                    showFieldError(errorSpan, 'DNI debe tener 7 u 8 dígitos');
                     input.setCustomValidity('DNI debe tener 7 u 8 dígitos');
+                } else if (value.length === 0) {
+                    showFieldError(errorSpan, 'El DNI es obligatorio');
+                    input.setCustomValidity('El DNI es obligatorio');
                 } else {
+                    hideFieldError(errorSpan);
                     input.setCustomValidity('');
                 }
             } else if (fieldType === 'age') {
                 const age = parseInt(value);
-                if (age < 1 || age > 120) {
+                // Validar edad mínima según la actividad seleccionada PRIMERO
+                const minAge = getMinAgeForSelectedActivity();
+                if (value.length === 0) {
+                    showFieldError(errorSpan, 'La edad es obligatoria');
+                    input.setCustomValidity('La edad es obligatoria');
+                } else if (minAge > 0 && age < minAge) {
+                    const activityName = getSelectedActivityName();
+                    const message = `La edad mínima para ${activityName} es ${minAge} años`;
+                    showFieldError(errorSpan, message);
+                    input.setCustomValidity(message);
+                } else if (age < 1 || age > 120) {
+                    showFieldError(errorSpan, 'Edad debe estar entre 1 y 120 años');
                     input.setCustomValidity('Edad debe estar entre 1 y 120 años');
                 } else {
+                    hideFieldError(errorSpan);
                     input.setCustomValidity('');
                 }
             }
@@ -611,69 +798,161 @@
             });
         }
 
+        // Funciones auxiliares para validación de edad por actividad
+        function getMinAgeForSelectedActivity() {
+            if (!selectedActivity) return 0;
+            const activity = (window.__activitiesCache || []).find(a => a.id === selectedActivity);
+            if (!activity) return 0;
+            const name = (activity.name || "").toLowerCase();
+            if (name.includes("palestra")) return 12;
+            if (name.includes("tirolesa")) return 8;
+            return 0;
+        }
+
+        function getSelectedActivityName() {
+            if (!selectedActivity) return "esta actividad";
+            const activity = (window.__activitiesCache || []).find(a => a.id === selectedActivity);
+            return activity ? activity.name : "esta actividad";
+        }
+
+        // Funciones auxiliares para mostrar/ocultar errores
+        function showFieldError(errorSpan, message) {
+            if (errorSpan) {
+                errorSpan.textContent = message;
+                errorSpan.style.display = 'block';
+            }
+        }
+
+        function hideFieldError(errorSpan) {
+            if (errorSpan) {
+                errorSpan.style.display = 'none';
+            }
+        }
+
+        function revalidateAllAges() {
+            // Revalidar edad del participante principal
+            const mainAgeInput = document.getElementById('visitor-age');
+            if (mainAgeInput) {
+                validateAge();
+            }
+            
+            // Revalidar edades de participantes adicionales
+            const participantAgeInputs = document.querySelectorAll('[id^="participant-"][id$="-age"]');
+            participantAgeInputs.forEach(input => {
+                validateParticipantField(input);
+            });
+        }
+
+        // Utilidades de hora actual y deshabilitado de turnos pasados
+        function timeToMinutes(hhmm) {
+            if (!hhmm || typeof hhmm !== 'string' || hhmm.indexOf(':') === -1) return null;
+            const [hh, mm] = hhmm.split(':').map(n => parseInt(n, 10));
+            if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
+            return hh * 60 + mm;
+        }
+
+        function applyCurrentTimeDisabling() {
+            const input = document.getElementById('current-time-input');
+            if (!input) return;
+            let currentVal = input.value;
+            if (!currentVal) {
+                const now = new Date();
+                const hh = String(now.getHours()).padStart(2, '0');
+                const mm = String(now.getMinutes()).padStart(2, '0');
+                currentVal = `${hh}:${mm}`;
+            }
+            const currentM = timeToMinutes(currentVal);
+            document.querySelectorAll('.schedules select').forEach(sel => {
+                const activityId = parseInt(sel.getAttribute('data-activity-id'));
+                const activity = (window.__activitiesCache || []).find(a => a.id === activityId);
+                Array.from(sel.options).forEach(opt => {
+                    if (!opt.value) return;
+                    const cap = activity?.per_schedule_capacity?.[opt.value];
+                    const disableByCapacity = cap && cap.available_capacity === 0;
+                    let disableByTime = false;
+                    if (currentM != null) {
+                        const schedM = timeToMinutes(opt.value);
+                        if (schedM != null && schedM <= currentM) disableByTime = true;
+                    }
+                    opt.disabled = disableByCapacity || disableByTime;
+                });
+
+                // si el seleccionado queda inválido, resetear
+                if (sel.value && sel.options[sel.selectedIndex]?.disabled) {
+                    sel.value = '';
+                    const msg = document.getElementById(`capacity-msg-${activityId}`);
+                    if (msg) msg.style.display = 'none';
+                    if (selectedActivity === activityId) {
+                        selectedActivity = null;
+                        selectedSchedule = null;
+                        validateForm();
+                    }
+                }
+            });
+        }
+
         async function loadActivities() {
             try {
+                console.log('Cargando actividades desde:', `${API_BASE_URL}/activities`);
                 const response = await fetch(`${API_BASE_URL}/activities`);
+                console.log('Response status:', response.status);
                 const activities = await response.json();
+                console.log('Activities loaded:', activities);
+                window.__activitiesCache = activities;
                 displayActivities(activities);
             } catch (error) {
+                console.error('Error loading activities:', error);
                 showAlert('Error al cargar las actividades: ' + error.message, 'error');
             }
         }
 
         function displayActivities(activities) {
+            console.log('Displaying activities:', activities);
             const container = document.getElementById('activities-list');
             
             if (activities.length === 0) {
+                console.log('No activities found, showing message');
                 container.innerHTML = '<p>No hay actividades disponibles</p>';
                 return;
             }
 
             container.innerHTML = activities.map(activity => {
-                // Usar los datos reales del backend
-                const totalCapacity = activity.capacity;
-                const availableCapacity = activity.available_capacity || 0;
-                const registeredCount = activity.registered_count || 0;
-                
-                let capacityClass = 'capacity-info';
-                let capacityText = `${availableCapacity} cupos disponibles de ${totalCapacity}`;
-                
-                if (availableCapacity <= 0) {
-                    capacityClass = 'capacity-full';
-                    capacityText = 'Sin cupos disponibles';
-                } else if (availableCapacity <= 2) {
-                    capacityClass = 'capacity-warning';
-                    capacityText = `⚠️ Solo ${availableCapacity} cupos disponibles de ${totalCapacity}`;
-                }
+                // Capacidad por turno (provista por backend)
+                const perSchedule = activity.per_schedule_capacity || {};
                 
                 return `
                     <div class="activity-card" data-activity-id="${activity.id}" data-requires-clothing="${activity.requires_clothing}">
                         <h3>${activity.name}</h3>
                         <p><strong>Requisitos:</strong> ${activity.requires_clothing ? 'Requiere vestimenta' : 'No requiere vestimenta'}</p>
-                        <div class="${capacityClass}">
-                            ${capacityText}
-                        </div>
                         <div class="schedules">
-                            ${activity.schedules.map(schedule => `
-                                <button class="schedule-btn" onclick="selectSchedule(${activity.id}, '${schedule}')" 
-                                        ${availableCapacity <= 0 ? 'disabled' : ''}>
-                                    ${schedule}
-                                </button>
-                            `).join('')}
+                            <select class="form-group" onchange="selectSchedule(${activity.id}, this.value)" data-activity-id="${activity.id}">
+                                <option value="">Selecciona un horario</option>
+                                ${activity.schedules.map(schedule => {
+                                    const cap = perSchedule[schedule];
+                                    const disabled = cap && cap.available_capacity === 0 ? 'disabled' : '';
+                                    const label = cap ? `${schedule} ${cap.available_capacity === 0 ? '(sin cupos)' : ''}` : schedule;
+                                    return `<option value="${schedule}" ${disabled}>${label}</option>`;
+                                }).join('')}
+                            </select>
                         </div>
+                        <div class="capacity-info" id="capacity-msg-${activity.id}" style="display:none;"></div>
                     </div>
                 `;
             }).join('');
+
+            // Aplicar deshabilitado por hora actual tras renderizar
+            applyCurrentTimeDisabling();
         }
 
         function selectSchedule(activityId, schedule) {
-            // Remover selección anterior
-            document.querySelectorAll('.schedule-btn').forEach(btn => {
-                btn.classList.remove('selected');
-            });
-            
-            // Seleccionar nuevo horario
-            event.target.classList.add('selected');
+            // Si hay otra actividad previamente seleccionada, resetear su select y ocultar su leyenda
+            if (selectedActivity && selectedActivity !== activityId) {
+                const prevSelect = document.querySelector(`.schedules select[data-activity-id="${selectedActivity}"]`);
+                if (prevSelect) prevSelect.value = '';
+                const prevMsg = document.getElementById(`capacity-msg-${selectedActivity}`);
+                if (prevMsg) prevMsg.style.display = 'none';
+            }
+            // Selección manejada por el elemento select
             
             selectedActivity = activityId;
             selectedSchedule = schedule;
@@ -707,10 +986,26 @@
                 showParticipantClothingFields(false);
             }
             
-            // Habilitar botón de registro
-            const registerBtn = document.getElementById('register-btn');
-            registerBtn.disabled = false;
-            registerBtn.textContent = `Registrarse en ${schedule}`;
+            // Mostrar leyenda de capacidad por turno seleccionado
+            const capacityMsg = document.getElementById(`capacity-msg-${activityId}`);
+            const activity = (window.__activitiesCache || []).find(a => a.id === activityId);
+            if (activity && schedule) {
+                const perCap = activity.per_schedule_capacity || {};
+                const cap = perCap[schedule];
+                if (cap) {
+                    capacityMsg.style.display = 'block';
+                    capacityMsg.textContent = `${cap.available_capacity} cupos disponibles de ${cap.turn_capacity}`;
+                    capacityMsg.className = `capacity-info ${cap.available_capacity <= 0 ? 'capacity-full' : (cap.available_capacity <= 2 ? 'capacity-warning' : '')}`;
+                }
+            } else if (capacityMsg) {
+                capacityMsg.style.display = 'none';
+            }
+
+            // Revalidar edades cuando cambia la actividad seleccionada
+            revalidateAllAges();
+
+            // Validar formulario completo para habilitar/deshabilitar botón
+            validateForm();
         }
 
         async function handleRegistration(event) {
@@ -721,35 +1016,62 @@
                 return;
             }
 
+            // Validar que el formulario sea válido antes de procesar
+            const form = event.target;
+            if (!form.checkValidity()) {
+                showAlert('Por favor completa todos los campos requeridos correctamente', 'error');
+                return;
+            }
+
             const formData = new FormData(event.target);
             const participantsCount = parseInt(formData.get('participants_count'));
+            
+            // Debug: mostrar todos los datos del formulario
+            console.log('Form data entries:');
+            for (let [key, value] of formData.entries()) {
+                console.log(`${key}: ${value}`);
+            }
             
             // Recopilar datos de todos los participantes
             const allParticipants = [];
             
             // Participante principal (ya está en el formulario)
-            allParticipants.push({
+            const mainParticipant = {
                 name: formData.get('name'),
                 dni: formData.get('dni'),
                 age: parseInt(formData.get('age')),
-                clothing_size: formData.get('clothing_size') || null
-            });
+                clothing_size: formData.get('visitor-size') || null
+            };
+            console.log('Main participant data:', mainParticipant);
+            
+            // Validar que el participante principal tenga todos los datos requeridos
+            if (!mainParticipant.name || !mainParticipant.dni || !mainParticipant.age) {
+                showAlert('Por favor completa todos los campos del participante principal', 'error');
+                return;
+            }
+            
+            allParticipants.push(mainParticipant);
             
             // Participantes adicionales
             for (let i = 1; i < participantsCount; i++) {
-                allParticipants.push({
+                const additionalParticipant = {
                     name: formData.get(`participant_${i}_name`),
                     dni: formData.get(`participant_${i}_dni`),
                     age: parseInt(formData.get(`participant_${i}_age`)),
                     clothing_size: formData.get(`participant_${i}_clothing_size`) || null
-                });
+                };
+                console.log(`Additional participant ${i} data:`, additionalParticipant);
+                allParticipants.push(additionalParticipant);
             }
             
             const visitorData = {
                 participants: allParticipants,
                 terms_accepted: formData.get('terms_accepted') === 'on',
-                participants_count: participantsCount
+                participants_count: participantsCount,
+                current_time: document.getElementById('current-time-input')?.value || null
             };
+            
+            console.log('Final visitor data to send:', visitorData);
 
             try {
                 const response = await fetch(`${API_BASE_URL}/activities/${selectedActivity}/register`, {
@@ -758,7 +1080,7 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        visitor: visitorData,
+                        ...visitorData,
                         schedule: selectedSchedule
                     })
                 });
