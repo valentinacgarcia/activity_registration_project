@@ -21,11 +21,11 @@ class TestIntegration:
         with self.app.app_context():
             db.create_all()
             
-            # Crear actividad de prueba
+            # Crear actividad de prueba con horarios válidos (cada 30 min entre 09:00-18:00)
             self.test_activity = Activity(
-                name="Yoga Matutino",
-                capacity=3,
-                schedules=["09:00", "10:00"],
+                name="Palestra",
+                capacity=12,  # Capacidad por turno según reglas
+                schedules=["09:00", "09:30", "10:00", "10:30", "15:00", "15:30", "16:00", "16:30"],
                 requirements={"nivel": "principiante"},
                 requires_clothing=True
             )
@@ -50,7 +50,8 @@ class TestIntegration:
             }],
             'terms_accepted': True,
             'participants_count': 1,
-            'schedule': '09:00'
+            'schedule': '15:00',
+            'current_time': '08:30'  # Hora anterior al horario
         }
         
         response = self.client.post(
@@ -75,7 +76,7 @@ class TestIntegration:
             }],
             'terms_accepted': True,
             'participants_count': 1,
-            'schedule': '09:00'
+            'schedule': '15:00'
         }
         
         response = self.client.post(
@@ -100,7 +101,8 @@ class TestIntegration:
             }],
             'terms_accepted': True,
             'participants_count': 1,
-            'schedule': '09:00'
+            'schedule': '15:00',
+            'current_time': '08:30'  # Hora anterior al horario
         }
         
         response = self.client.post(
@@ -112,13 +114,13 @@ class TestIntegration:
         assert response.status_code == 400
         data = json.loads(response.data)
         assert data['success'] == False
-        assert 'Datos del participante' in data['error']
+        assert 'El nombre del participante 1 es obligatorio' in data['error']
 
     def test_should_rollback_registration_on_failure(self):
         """I4: Simula error durante el registro para comprobar que no se guarda nada"""
         with self.app.app_context():
             # Primero, llenar los cupos disponibles
-            for i in range(3):
+            for i in range(12):  # Llenar toda la capacidad
                 visitor = Visitor(
                     name=f'Visitante {i+1}',
                     dni=f'1234567{i}',
@@ -131,7 +133,7 @@ class TestIntegration:
                 registration = Registration(
                     activity_id=self.activity_id,
                     visitor_id=visitor.id,
-                    schedule='09:00'
+                    schedule='15:00'
                 )
                 db.session.add(registration)
             
@@ -150,7 +152,8 @@ class TestIntegration:
                 }],
                 'terms_accepted': True,
                 'participants_count': 1,
-                'schedule': '09:00'
+                'schedule': '15:00',
+                'current_time': '08:30'  # Hora anterior al horario
             }
             
             response = self.client.post(

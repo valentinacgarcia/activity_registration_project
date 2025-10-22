@@ -54,6 +54,17 @@ class TestAcceptanceCriteria:
     def test_1_successful_registration_with_clothing_required(self):
         """Prueba 1: Registro exitoso con actividad que requiere vestimenta"""
         with self.app.app_context():
+            # Crear actividad Tirolesa para este test
+            tirolesa = Activity(
+                name="Tirolesa",
+                capacity=10,
+                schedules=["15:00"],
+                requirements={"nivel": "todos"},
+                requires_clothing=True
+            )
+            db.session.add(tirolesa)
+            db.session.commit()
+            
             visitor_data = {
                 'participants': [{
                     'name': 'Juan Pérez',
@@ -62,13 +73,14 @@ class TestAcceptanceCriteria:
                     'clothing_size': 'M'
                 }],
                 'terms_accepted': True,
-                'participants_count': 1
+                'participants_count': 1,
+                'current_time': '08:30'
             }
             
             result = ActivityService.register_visitor(
-                activity_id=self.activity_with_clothing_id,
+                activity_id=tirolesa.id,
                 visitor_data=visitor_data,
-                schedule='09:00'
+                schedule='15:00'
             )
             
             assert result['success'] == True
@@ -76,15 +88,26 @@ class TestAcceptanceCriteria:
             
             # Verificar que se creó el registro
             registration = Registration.query.filter_by(
-                activity_id=self.activity_with_clothing_id
+                activity_id=tirolesa.id
             ).first()
             assert registration is not None
 
     def test_2_no_available_slots_fails(self):
         """Prueba 2: Sin cupos disponibles - debe fallar"""
         with self.app.app_context():
+            # Crear actividad Tirolesa y llenar todos los cupos
+            tirolesa = Activity(
+                name="Tirolesa",
+                capacity=12,
+                schedules=["15:00"],
+                requirements={"nivel": "todos"},
+                requires_clothing=True
+            )
+            db.session.add(tirolesa)
+            db.session.commit()
+            
             # Llenar todos los cupos
-            for i in range(3):
+            for i in range(12):
                 visitor = Visitor(
                     name=f'Visitante {i+1}',
                     dni=f'1234567{i}',
@@ -95,9 +118,9 @@ class TestAcceptanceCriteria:
                 db.session.flush()
                 
                 registration = Registration(
-                    activity_id=self.activity_with_clothing_id,
+                    activity_id=tirolesa.id,
                     visitor_id=visitor.id,
-                    schedule='09:00'
+                    schedule='15:00'
                 )
                 db.session.add(registration)
             
@@ -106,19 +129,20 @@ class TestAcceptanceCriteria:
             # Intentar registrar un visitante más
             visitor_data = {
                 'participants': [{
-                    'name': 'Visitante Extra',
-                    'dni': '99999999',
-                    'age': 30,
+                    'name': 'Marco Polo',
+                    'dni': '49999999',
+                    'age': 20,
                     'clothing_size': 'L'
                 }],
                 'terms_accepted': True,
-                'participants_count': 1
+                'participants_count': 1,
+                'current_time': '08:30'
             }
             
             result = ActivityService.register_visitor(
-                activity_id=self.activity_with_clothing_id,
+                activity_id=tirolesa.id,
                 visitor_data=visitor_data,
-                schedule='09:00'
+                schedule='15:00'
             )
             
             assert result['success'] == False
@@ -127,21 +151,33 @@ class TestAcceptanceCriteria:
     def test_3_clothing_size_not_required_passes(self):
         """Prueba 3: Actividad sin vestimenta requerida - debe pasar sin talla"""
         with self.app.app_context():
+            # Crear actividad Jardinería
+            jardineria = Activity(
+                name="Jardinería",
+                capacity=12,
+                schedules=["16:00"],
+                requirements={"nivel": "todos"},
+                requires_clothing=False
+            )
+            db.session.add(jardineria)
+            db.session.commit()
+            
             visitor_data = {
                 'participants': [{
                     'name': 'María García',
-                    'dni': '87654321',
+                    'dni': '34567890',
                     'age': 30,
                     'clothing_size': None  # Sin talla
                 }],
                 'terms_accepted': True,
-                'participants_count': 1
+                'participants_count': 1,
+                'current_time': '08:30'
             }
             
             result = ActivityService.register_visitor(
-                activity_id=self.activity_without_clothing_id,
+                activity_id=jardineria.id,
                 visitor_data=visitor_data,
-                schedule='10:00'
+                schedule='16:00'
             )
             
             assert result['success'] == True
@@ -150,44 +186,68 @@ class TestAcceptanceCriteria:
     def test_4_invalid_schedule_fails(self):
         """Prueba 4: Horario no disponible - debe fallar"""
         with self.app.app_context():
+            # Crear actividad Tirolesa
+            tirolesa = Activity(
+                name="Tirolesa",
+                capacity=10,
+                schedules=["14:00"],
+                requirements={"nivel": "todos"},
+                requires_clothing=True
+            )
+            db.session.add(tirolesa)
+            db.session.commit()
+            
             visitor_data = {
                 'participants': [{
                     'name': 'Carlos López',
-                    'dni': '11223344',
+                    'dni': '31223344',
                     'age': 35,
                     'clothing_size': 'L'
                 }],
                 'terms_accepted': True,
-                'participants_count': 1
+                'participants_count': 1,
+                'current_time': '16:30'  # Hora posterior al horario
             }
             
             result = ActivityService.register_visitor(
-                activity_id=self.activity_with_clothing_id,
+                activity_id=tirolesa.id,
                 visitor_data=visitor_data,
-                schedule='15:00'  # Horario no disponible
+                schedule='14:00'  # Horario que ya pasó
             )
             
             assert result['success'] == False
-            assert 'Horario no disponible' in result['error']
+            assert 'ya pasó' in result['error']
 
     def test_5_terms_not_accepted_fails(self):
         """Prueba 5: Términos no aceptados - debe fallar"""
         with self.app.app_context():
+            # Crear actividad Tirolesa
+            tirolesa = Activity(
+                name="Tirolesa",
+                capacity=10,
+                schedules=["15:00"],
+                requirements={"nivel": "todos"},
+                requires_clothing=True
+            )
+            db.session.add(tirolesa)
+            db.session.commit()
+            
             visitor_data = {
                 'participants': [{
                     'name': 'Ana Martínez',
                     'dni': '55667788',
-                    'age': 28,
+                    'age': 18,
                     'clothing_size': 'S'
                 }],
                 'terms_accepted': False,  # No acepta términos
-                'participants_count': 1
+                'participants_count': 1,
+                'current_time': '08:30'
             }
             
             result = ActivityService.register_visitor(
-                activity_id=self.activity_with_clothing_id,
+                activity_id=tirolesa.id,
                 visitor_data=visitor_data,
-                schedule='09:00'
+                schedule='15:00'
             )
             
             assert result['success'] == False
@@ -196,21 +256,33 @@ class TestAcceptanceCriteria:
     def test_6_required_clothing_size_missing_fails(self):
         """Prueba 6: Talla requerida faltante - debe fallar"""
         with self.app.app_context():
+            # Crear actividad Tirolesa
+            tirolesa = Activity(
+                name="Tirolesa",
+                capacity=10,
+                schedules=["15:00"],
+                requirements={"nivel": "todos"},
+                requires_clothing=True
+            )
+            db.session.add(tirolesa)
+            db.session.commit()
+            
             visitor_data = {
                 'participants': [{
                     'name': 'Pedro Rodríguez',
-                    'dni': '99887766',
-                    'age': 40,
+                    'dni': '49887766',
+                    'age': 20,
                     'clothing_size': None  # Sin talla cuando es requerida
                 }],
                 'terms_accepted': True,
-                'participants_count': 1
+                'participants_count': 1,
+                'current_time': '08:30'
             }
             
             result = ActivityService.register_visitor(
-                activity_id=self.activity_with_clothing_id,
+                activity_id=tirolesa.id,
                 visitor_data=visitor_data,
-                schedule='09:00'
+                schedule='15:00'
             )
             
             assert result['success'] == False
@@ -219,27 +291,39 @@ class TestAcceptanceCriteria:
     def test_7_multiple_participants_successful(self):
         """Prueba adicional: Múltiples participantes exitoso"""
         with self.app.app_context():
+            # Crear actividad Tirolesa
+            tirolesa = Activity(
+                name="Tirolesa",
+                capacity=10,
+                schedules=["11:00"],
+                requirements={"nivel": "todos"},
+                requires_clothing=True
+            )
+            db.session.add(tirolesa)
+            db.session.commit()
+            
             visitor_data = {
                 'participants': [
                     {
-                        'name': 'Líder Grupo',
-                        'dni': '11111111',
-                        'age': 30,
+                        'name': 'Macarena Pasos',
+                        'dni': '41111111',
+                        'age': 20,
                         'clothing_size': 'M'
                     },
                     {
-                        'name': 'Participante 2',
-                        'dni': '22222222',
-                        'age': 25,
+                        'name': 'Camila Pasos',
+                        'dni': '42222222',
+                        'age': 19,
                         'clothing_size': 'L'
                     }
                 ],
                 'terms_accepted': True,
-                'participants_count': 2
+                'participants_count': 2,
+                'current_time': '08:30'
             }
             
             result = ActivityService.register_visitor(
-                activity_id=self.activity_with_clothing_id,
+                activity_id=tirolesa.id,
                 visitor_data=visitor_data,
                 schedule='11:00'
             )
@@ -249,15 +333,26 @@ class TestAcceptanceCriteria:
             
             # Verificar que se crearon ambos registros
             registrations = Registration.query.filter_by(
-                activity_id=self.activity_with_clothing_id
+                activity_id=tirolesa.id
             ).all()
             assert len(registrations) == 2
 
     def test_8_multiple_participants_exceeds_capacity_fails(self):
         """Prueba adicional: Múltiples participantes exceden capacidad - debe fallar"""
         with self.app.app_context():
-            # Llenar 2 de los 3 cupos disponibles
-            for i in range(2):
+            # Crear actividad Tirolesa
+            tirolesa = Activity(
+                name="Tirolesa",
+                capacity=12,
+                schedules=["15:00"],
+                requirements={"nivel": "todos"},
+                requires_clothing=True
+            )
+            db.session.add(tirolesa)
+            db.session.commit()
+            
+            # Llenar 11 de los 12 cupos disponibles
+            for i in range(11):
                 visitor = Visitor(
                     name=f'Visitante {i+1}',
                     dni=f'1234567{i}',
@@ -268,39 +363,146 @@ class TestAcceptanceCriteria:
                 db.session.flush()
                 
                 registration = Registration(
-                    activity_id=self.activity_with_clothing_id,
+                    activity_id=tirolesa.id,
                     visitor_id=visitor.id,
-                    schedule='09:00'
+                    schedule='15:00'
                 )
                 db.session.add(registration)
             
             db.session.commit()
             
-            # Intentar registrar 2 personas más (total 4, pero solo hay 1 cupo)
+            # Intentar registrar 2 personas más (total 2, pero solo hay 1 cupo)
             visitor_data = {
                 'participants': [
                     {
-                        'name': 'Grupo 1',
+                        'name': 'Liliana Mirasol',
                         'dni': '33333333',
                         'age': 30,
                         'clothing_size': 'M'
                     },
                     {
-                        'name': 'Grupo 2',
+                        'name': 'Narella Villa',
                         'dni': '44444444',
-                        'age': 25,
+                        'age': 21,
                         'clothing_size': 'L'
                     }
                 ],
                 'terms_accepted': True,
-                'participants_count': 2
+                'participants_count': 2,
+                'current_time': '08:30'
             }
             
             result = ActivityService.register_visitor(
-                activity_id=self.activity_with_clothing_id,
+                activity_id=tirolesa.id,
                 visitor_data=visitor_data,
-                schedule='09:00'
+                schedule='15:00'
             )
             
             assert result['success'] == False
             assert 'No hay cupos disponibles' in result['error']
+
+    def test_9_no_schedule_selected_fails(self):
+        """Prueba 9: Sin horario seleccionado - debe fallar"""
+        with self.app.app_context():
+            # Crear actividad Tirolesa
+            tirolesa = Activity(
+                name="Tirolesa",
+                capacity=10,
+                schedules=["15:00"],
+                requirements={"nivel": "todos"},
+                requires_clothing=True
+            )
+            db.session.add(tirolesa)
+            db.session.commit()
+            
+            visitor_data = {
+                'participants': [{
+                    'name': 'María González',
+                    'dni': '12345678',
+                    'age': 25,
+                    'clothing_size': 'M'
+                }],
+                'terms_accepted': True,
+                'participants_count': 1,
+                'current_time': '08:30'
+            }
+            
+            result = ActivityService.register_visitor(
+                activity_id=tirolesa.id,
+                visitor_data=visitor_data,
+                schedule=''  # Horario vacío
+            )
+            
+            assert result['success'] == False
+            assert 'Horario no disponible' in result['error']
+
+    def test_10_invalid_time_range_fails(self):
+        """Prueba 10: Horario fuera del rango válido (antes de las 9:00) - debe fallar"""
+        with self.app.app_context():
+            # Crear actividad Tirolesa
+            tirolesa = Activity(
+                name="Tirolesa",
+                capacity=10,
+                schedules=["15:00"],
+                requirements={"nivel": "todos"},
+                requires_clothing=True
+            )
+            db.session.add(tirolesa)
+            db.session.commit()
+            
+            # Test con horario antes de las 9:00
+            visitor_data_early = {
+                'participants': [{
+                    'name': 'Juan Pérez',
+                    'dni': '11111111',
+                    'age': 25,
+                    'clothing_size': 'M'
+                }],
+                'terms_accepted': True,
+                'participants_count': 1,
+                'current_time': '08:00'
+            }
+            
+            result_early = ActivityService.register_visitor(
+                activity_id=tirolesa.id,
+                visitor_data=visitor_data_early,
+                schedule='08:30'  # Horario antes de las 9:00
+            )
+            
+            assert result_early['success'] == False
+            assert 'Horario no disponible' in result_early['error']
+
+    def test_11_invalid_dni_format_fails(self):
+        """Prueba 11: DNI no numérico - debe fallar"""
+        with self.app.app_context():
+            # Crear actividad Tirolesa
+            tirolesa = Activity(
+                name="Tirolesa",
+                capacity=10,
+                schedules=["15:00"],
+                requirements={"nivel": "todos"},
+                requires_clothing=True
+            )
+            db.session.add(tirolesa)
+            db.session.commit()
+            
+            visitor_data = {
+                'participants': [{
+                    'name': 'Carlos López',
+                    'dni': 'ABC12345',  # DNI con letras
+                    'age': 25,
+                    'clothing_size': 'M'
+                }],
+                'terms_accepted': True,
+                'participants_count': 1,
+                'current_time': '08:30'
+            }
+            
+            result = ActivityService.register_visitor(
+                activity_id=tirolesa.id,
+                visitor_data=visitor_data,
+                schedule='15:00'
+            )
+            
+            assert result['success'] == False
+            assert 'solo números' in result['details'][0]

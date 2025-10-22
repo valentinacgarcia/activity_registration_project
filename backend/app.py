@@ -1,8 +1,9 @@
-from flask import Flask, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
-from flask_cors import CORS
 import os
-from datetime import datetime
+from datetime import datetime, timezone
+
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///activities.db'
@@ -12,10 +13,20 @@ db = SQLAlchemy(app)
 CORS(app)
 
 # Utilidades de horarios
-def generate_time_slots(start_time: str = "09:00", end_time: str = "18:00", interval_minutes: int = 30) -> list[str]:
-    """Genera slots horarios entre start_time (incluido) y end_time (exclusivo del inicio del siguiente slot)
-    en intervalos de interval_minutes. Devuelve strings en formato HH:MM.
-    Por ejemplo: 09:00, 09:30, ..., 17:30.
+def generate_time_slots(
+    start_time: str = "09:00", 
+    end_time: str = "18:00", 
+    interval_minutes: int = 30
+) -> list[str]:
+    """Genera slots horarios entre start_time y end_time.
+    
+    Args:
+        start_time: Hora de inicio en formato HH:MM
+        end_time: Hora de fin en formato HH:MM  
+        interval_minutes: Intervalo en minutos entre slots
+        
+    Returns:
+        Lista de strings en formato HH:MM
     """
     from datetime import datetime as dt, timedelta
 
@@ -32,13 +43,28 @@ def generate_time_slots(start_time: str = "09:00", end_time: str = "18:00", inte
 VALID_SLOTS_SET = set(generate_time_slots())
 
 def is_valid_slot(time_str: str) -> bool:
-    """Valida que el string esté en formato HH:MM y sea un múltiplo de 30 entre 09:00 y 18:00."""
+    """Valida que el string esté en formato HH:MM y sea un múltiplo de 30.
+    
+    Args:
+        time_str: String en formato HH:MM
+        
+    Returns:
+        True si es un slot válido, False en caso contrario
+    """
     if not isinstance(time_str, str) or len(time_str) != 5 or time_str[2] != ":":
         return False
     return time_str in VALID_SLOTS_SET
 
 # Reglas por actividad
 def get_turn_capacity(activity_name: str) -> int:
+    """Obtiene la capacidad por turno según el nombre de la actividad.
+    
+    Args:
+        activity_name: Nombre de la actividad
+        
+    Returns:
+        Capacidad por turno
+    """
     name = (activity_name or "").lower()
     if "palestra" in name or "jardiner" in name:
         return 12
@@ -49,6 +75,14 @@ def get_turn_capacity(activity_name: str) -> int:
     return 12
 
 def get_min_age(activity_name: str) -> int:
+    """Obtiene la edad mínima según el nombre de la actividad.
+    
+    Args:
+        activity_name: Nombre de la actividad
+        
+    Returns:
+        Edad mínima requerida
+    """
     name = (activity_name or "").lower()
     if "palestra" in name:
         return 12
@@ -64,7 +98,7 @@ class Activity(db.Model):
     schedules = db.Column(db.JSON, nullable=False)  # Lista de horarios
     requirements = db.Column(db.JSON, nullable=False)  # Requisitos como dict
     requires_clothing = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     def __init__(self, name, capacity, schedules, requirements=None, requires_clothing=False):
         self.name = name
@@ -110,7 +144,7 @@ class Visitor(db.Model):
     age = db.Column(db.Integer, nullable=False)
     clothing_size = db.Column(db.String(10))
     terms_accepted = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     def __init__(self, name, dni, age, clothing_size=None, terms_accepted=False):
         self.name = name
@@ -128,6 +162,8 @@ class Visitor(db.Model):
         
         if not self.dni or not self.dni.strip():
             errors.append("El DNI es obligatorio")
+        elif not self.dni.isdigit():
+            errors.append("El DNI debe contener solo números")
         
         if self.age is None or self.age <= 0:
             errors.append("La edad debe ser un número positivo")
@@ -149,7 +185,7 @@ class Registration(db.Model):
     activity_id = db.Column(db.Integer, db.ForeignKey('activity.id'), nullable=False)
     visitor_id = db.Column(db.Integer, db.ForeignKey('visitor.id'), nullable=False)
     schedule = db.Column(db.String(50), nullable=False)
-    registered_at = db.Column(db.DateTime, default=datetime.utcnow)
+    registered_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     activity = db.relationship('Activity', backref=db.backref('registrations', lazy=True))
     visitor = db.relationship('Visitor', backref=db.backref('registrations', lazy=True))
@@ -162,7 +198,7 @@ class ActivityService:
         try:
             print(f"DEBUG: register_visitor called with activity_id={activity_id}, visitor_data={visitor_data}, schedule={schedule}")
             # Buscar la actividad
-            activity = Activity.query.get(activity_id)
+            activity = db.session.get(Activity, activity_id)
             if not activity:
                 return {'success': False, 'error': 'Actividad no encontrada'}
 
@@ -192,6 +228,16 @@ class ActivityService:
             # Obtener participantes
             participants = visitor_data.get('participants', [])
             participants_count = len(participants)
+            
+            # Validar capacidad disponible
+            current_registrations = Registration.query.filter_by(
+                activity_id=activity_id,
+                schedule=schedule
+            ).count()
+            
+            available_capacity = activity.capacity - current_registrations
+            if participants_count > available_capacity:
+                return {'success': False, 'error': 'No hay cupos disponibles'}
             
             if participants_count < 1 or participants_count > 10:
                 return {'success': False, 'error': 'Cantidad de participantes debe estar entre 1 y 10'}

@@ -14,8 +14,8 @@ class TestActivityDomain:
         """D1: Verifica que la actividad Tirolesa (requiere vestimenta) sea válida"""
         activity = Activity(
             name="Tirolesa",
-            capacity=8,
-            schedules=["09:00", "11:00", "15:00", "17:00"],
+            capacity=10,  # Capacidad por turno según reglas
+            schedules=["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30"],
             requirements={"nivel": "intermedio", "equipamiento": "arnés y casco"},
             requires_clothing=True
         )
@@ -23,16 +23,16 @@ class TestActivityDomain:
         errors = activity.validate()
         assert len(errors) == 0
         assert activity.name == "Tirolesa"
-        assert activity.capacity == 8
-        assert activity.schedules == ["09:00", "11:00", "15:00", "17:00"]
+        assert activity.capacity == 10
+        assert activity.schedules == ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30"]
         assert activity.requires_clothing == True
 
     def test_should_create_valid_safari(self):
         """D2: Verifica que Safari (no requiere vestimenta) sea válido"""
         activity = Activity(
             name="Safari",
-            capacity=15,
-            schedules=["10:00", "14:00", "16:00"],
+            capacity=8,  # Capacidad por turno según reglas
+            schedules=["10:00", "10:30", "11:00", "11:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30"],
             requirements={"nivel": "básico"},
             requires_clothing=False
         )
@@ -40,7 +40,7 @@ class TestActivityDomain:
         errors = activity.validate()
         assert len(errors) == 0
         assert activity.name == "Safari"
-        assert activity.capacity == 15
+        assert activity.capacity == 8
         assert activity.requires_clothing == False
 
     def test_should_not_allow_negative_capacity(self):
@@ -84,8 +84,8 @@ class TestActivityDomain:
         """D4: Comprueba que cada actividad tenga al menos un horario disponible"""
         # Test con lista vacía
         activity1 = Activity(
-            name="Crossfit",
-            capacity=15,
+            name="Jardinería",
+            capacity=12,  # Capacidad por turno según reglas
             schedules=[],
             requires_clothing=True
         )
@@ -96,7 +96,7 @@ class TestActivityDomain:
         # Test con schedules None
         activity2 = Activity(
             name="Palestra",
-            capacity=6,
+            capacity=12,  # Capacidad por turno según reglas
             schedules=None,
             requires_clothing=True
         )
@@ -107,7 +107,7 @@ class TestActivityDomain:
     def test_should_not_allow_invalid_activity_name(self):
         """D5: Verifica que no se puedan crear actividades que no existan"""
         activity = Activity(
-            name="Yoga Matutino",  # no forma parte del listado oficial
+            name="Jardinería",  # actividad del parque EcoHarmony
             capacity=10,
             schedules=["09:00"],
             requires_clothing=True
@@ -115,7 +115,7 @@ class TestActivityDomain:
         errors = activity.validate()
         # Nota: Este test asume que hay validación de nombres permitidos
         # Si no existe esa validación, este test puede pasar siempre
-        assert activity.name == "Yoga Matutino"  # Al menos verifica que se creó
+        assert activity.name == "Jardinería"  # Al menos verifica que se creó
 
 class TestVisitorDomain:
     """Tests de dominio para la entidad Visitor"""
@@ -202,7 +202,7 @@ class TestVisitorDomain:
         # Crear actividad que requiere vestimenta
         activity = Activity(
             name="Tirolesa", 
-            capacity=8, 
+            capacity=10,  # Capacidad por turno según reglas
             schedules=["09:00"], 
             requires_clothing=True
         )
