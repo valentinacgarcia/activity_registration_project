@@ -24,21 +24,21 @@ def seed_data():
         activities = [
             Activity(
                 name="Tirolesa",
-                capacity=8,
+                capacity=10,
                 schedules=slots,
                 requirements={"nivel": "intermedio", "equipamiento": "arnés y casco"},
                 requires_clothing=True
             ),
             Activity(
                 name="Safari",
-                capacity=15,
+                capacity=8,
                 schedules=slots,
                 requirements={"nivel": "todos", "equipamiento": "binoculares"},
                 requires_clothing=False
             ),
             Activity(
                 name="Palestra",
-                capacity=6,
+                capacity=12,
                 schedules=slots,
                 requirements={"nivel": "principiante", "equipamiento": "zapatos de escalada"},
                 requires_clothing=True
